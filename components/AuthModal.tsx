@@ -1,7 +1,8 @@
-
 import React, { useState } from 'react';
 import { User } from '../types';
 import { mockDb } from '../services/mockDb';
+import { loginWithYandex } from "../lib/oauth"; // Реальная авторизация Яндекс
+import { loginWithVk } from "../lib/oauth";     // Реальная авторизация ВК
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -29,19 +30,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
     onClose();
   };
 
-  const handleSocialAuth = (provider: 'yandex' | 'vk') => {
-    // Simulate social login redirect
-    const newUser: User = {
-      id: Math.random().toString(),
-      email: `${provider}_user@example.com`,
-      name: `${provider === 'yandex' ? 'Яндекс' : 'ВК'} Пользователь`,
-      provider,
-      avatar: `https://picsum.photos/seed/${provider}/100`
-    };
-    mockDb.setCurrentUser(newUser);
-    onSuccess(newUser);
-    onClose();
-  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -57,15 +45,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
           </div>
 
           <div className="space-y-4 mb-8">
-            <button 
-              onClick={() => handleSocialAuth('yandex')}
+            {/* Реальная авторизация через Яндекс */}
+            <button
+              onClick={loginWithYandex}
               className="w-full flex items-center justify-center gap-3 bg-[#f33] hover:bg-[#d00] text-white py-3.5 rounded-2xl font-bold transition-all transform active:scale-95"
             >
               <i className="fab fa-yandex text-xl"></i>
               Войти через Яндекс
             </button>
-            <button 
-              onClick={() => handleSocialAuth('vk')}
+
+            {/* Реальная авторизация через ВК */}
+            <button
+              onClick={loginWithVk}
               className="w-full flex items-center justify-center gap-3 bg-[#0077FF] hover:bg-[#0066DD] text-white py-3.5 rounded-2xl font-bold transition-all transform active:scale-95"
             >
               <i className="fab fa-vk text-xl"></i>
@@ -74,15 +65,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
           </div>
 
           <div className="relative mb-8">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
-            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white dark:bg-slate-800 px-3 text-slate-400 font-bold tracking-widest">или через почту</span></div>
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white dark:bg-slate-800 px-3 text-slate-400 font-bold tracking-widest">
+                или через почту
+              </span>
+            </div>
           </div>
 
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div>
-              <input 
-                type="email" 
-                placeholder="Электронная почта" 
+              <input
+                type="email"
+                placeholder="Электронная почта"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -90,9 +87,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
               />
             </div>
             <div>
-              <input 
-                type="password" 
-                placeholder="Пароль" 
+              <input
+                type="password"
+                placeholder="Пароль"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -106,7 +103,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => 
 
           <p className="mt-8 text-center text-slate-500 dark:text-slate-400 text-sm">
             {mode === 'login' ? 'Нет аккаунта?' : 'Уже есть аккаунт?'}
-            <button 
+            <button
               onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
               className="ml-2 text-blue-600 font-bold hover:underline"
             >
