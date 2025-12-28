@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import AutocompleteInput from './components/AutocompleteInput';
 import OfferCard from './components/OfferCard';
 import AuthModal from './components/AuthModal';
-import { Offer, SearchParams, User, SearchHistoryItem } from './types';
+import { Offer, User, SearchHistoryItem } from './types';
 import { CARGO_COMPANIES } from './constants';
 import { mockDb } from './services/mockDb';
 
@@ -11,31 +11,31 @@ const App: React.FC = () => {
   const [toCity, setToCity] = useState('');
   const [weight, setWeight] = useState(1);
   const [declaredValue, setDeclaredValue] = useState(0);
+  const [length, setLength] = useState(30);
+  const [width, setWidth] = useState(20);
+  const [height, setHeight] = useState(10);
+
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>(CARGO_COMPANIES);
-  
+
   const [offers, setOffers] = useState<Offer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
-  
+
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  // Загрузка сохранённых данных при старте
+  // Принудительная тёмная тема + загрузка данных
   useEffect(() => {
     const savedUser = mockDb.getCurrentUser();
     if (savedUser) setUser(savedUser);
-    
+
     const history = mockDb.getHistory();
     setSearchHistory(history);
 
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-    const initialTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    setTheme(initialTheme);
-    if (initialTheme === 'dark') document.documentElement.classList.add('dark');
+    document.documentElement.classList.add('dark');
   }, []);
 
-  // Обработка авторизации через ВК (Implicit Flow)
+  // Авторизация через ВК
   useEffect(() => {
     if (window.location.hash.includes('access_token')) {
       const hash = window.location.hash.substring(1);
@@ -62,97 +62,152 @@ const App: React.FC = () => {
               mockDb.setCurrentUser(currentUser);
               setUser(currentUser);
 
-              alert(`Добро пожаловать, ${currentUser.name}!`);
-
-              // Очищаем хэш из URL
               window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
             }
           })
           .catch(err => {
-            console.error('Ошибка получения данных из ВК:', err);
-            alert('Ошибка при авторизации через ВК');
+            console.error('Ошибка ВК:', err);
             window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
           });
       }
     }
   }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+  // Вспомогательные функции
+  const getCompanyName = (key: string) => {
+    const map: Record<string, string> = {
+      cdek: 'СДЭК',
+      boxberry: 'Boxberry',
+      rupost: 'Почта России',
+      dellin: 'Деловые Линии',
+    };
+    return map[key] || key.toUpperCase();
   };
 
-  const handleSearch = (e?: React.FormEvent) => {
+  const getLogoForCompany = (key: string) => {
+    const map: Record<string, string> = {
+      cdek: 'fas fa-bolt',
+      boxberry: 'fas fa-box-open',
+      rupost: 'fas fa-envelope',
+      dellin: 'fas fa-truck',
+    };
+    return map[key] || 'fas fa-truck-loading';
+  };
+
+  const getColorForCompany = (key: string) => {
+    const map: Record<string, string> = {
+      cdek: '#81c784',
+      boxberry: '#e57373',
+      rupost: '#64b5f6',
+      dellin: '#ffb74d',
+    };
+    return map[key] || '#94a3b8';
+  };
+
+  const getFallbackOffers = (): Offer[] => {
+    return [
+      {
+        id: 'fallback-1',
+        company: 'СДЭК',
+        tariff: 'Посылочка',
+        price: 450 + Math.round(weight * 50),
+        time: '2-3 дня',
+        badge: 'Ориентировочно',
+        logo: 'fas fa-bolt',
+        color: '#81c784',
+        fromCity,
+        toCity,
+        weight,
+        declaredValue,
+        length,
+        width,
+        height
+      },
+      // Можно добавить ещё, но и одного достаточно
+    ].filter(o => selectedCompanies.includes(o.company));
+  };
+
+  // Основной поиск с ApiShip
+  const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!fromCity || !toCity) return;
 
     setIsSearching(true);
 
-    // Save to history
-    const history = mockDb.saveHistoryItem({
+    const historyItem = mockDb.saveHistoryItem({
       fromCity,
       toCity,
       weight,
       declaredValue,
       companies: selectedCompanies
     });
-    setSearchHistory(history);
+    setSearchHistory(historyItem);
 
-    // Simulated API Call
-    setTimeout(() => {
-      const mockOffers: Offer[] = [
-        {
-          id: '1',
-          company: 'СДЭК',
-          tariff: 'Посылочка',
-          price: 450,
-          time: '2-3 дня',
-          badge: 'Быстро',
-          logo: 'fas fa-bolt',
-          color: '#81c784'
+    try {
+      const response = await fetch('https://api.apiship.ru/v1/calculator', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'f07bef35ec1781d4793b571409bdcb2a',
+          'Accept': 'application/json'
         },
-        {
-          id: '2',
-          company: 'Boxberry',
-          tariff: 'Стандарт',
-          price: 380,
-          time: '4-5 дней',
-          badge: 'Популярно',
-          logo: 'fas fa-box-open',
-          color: '#e57373'
-        },
-        {
-          id: '3',
-          company: 'Почта России',
-          tariff: 'Посылка',
-          price: 290,
-          time: '6-8 дней',
-          logo: 'fas fa-envelope',
-          color: '#64b5f6'
-        },
-        {
-          id: '4',
-          company: 'Деловые Линии',
-          tariff: 'Авто',
-          price: 720,
-          time: '3-5 дней',
-          badge: 'Для бизнеса',
-          logo: 'fas fa-truck',
-          color: '#ffb74d'
-        },
-      ].filter(o => selectedCompanies.includes(o.company))
-       .sort((a, b) => a.price - b.price);
+        body: JSON.stringify({
+          from: { city: fromCity.trim() },
+          to: { city: toCity.trim() },
+          weight: weight * 1000,
+          length,
+          width,
+          height,
+          assessedCost: declaredValue || 0
+        })
+      });
 
-      setOffers(mockOffers);
+      const data = await response.json();
+
+      if (!response.ok || !Array.isArray(data)) {
+        setOffers(getFallbackOffers());
+        return;
+      }
+
+      if (data.length === 0) {
+        setOffers(getFallbackOffers());
+        return;
+      }
+
+      const apiOffers: Offer[] = data.map((item: any) => {
+        const key = item.providerKey?.toLowerCase() || '';
+        return {
+          id: item.id || Math.random().toString(),
+          company: getCompanyName(key),
+          tariff: item.tariffName || 'Стандарт',
+          price: Math.round(item.cost || 0),
+          time: item.deliveryTimeMin && item.deliveryTimeMax
+            ? `${item.deliveryTimeMin}–${item.deliveryTimeMax} дней`
+            : 'Не указано',
+          logo: getLogoForCompany(key),
+          color: getColorForCompany(key),
+          fromCity,
+          toCity,
+          weight,
+          declaredValue,
+          length,
+          width,
+          height
+        };
+      });
+
+      const filtered = apiOffers
+        .filter(o => selectedCompanies.includes(o.company))
+        .sort((a, b) => a.price - b.price);
+
+      setOffers(filtered);
+    } catch (err) {
+      console.warn('ApiShip недоступен — показываем ориентировочные цены');
+      setOffers(getFallbackOffers());
+    } finally {
       setIsSearching(false);
       window.scrollTo({ top: 500, behavior: 'smooth' });
-    }, 1200);
+    }
   };
 
   const applyHistoryItem = (item: SearchHistoryItem) => {
@@ -161,7 +216,6 @@ const App: React.FC = () => {
     setWeight(item.weight);
     setDeclaredValue(item.declaredValue);
     setSelectedCompanies(item.companies);
-    // Auto trigger search
     setTimeout(() => handleSearch(), 100);
   };
 
@@ -183,9 +237,6 @@ const App: React.FC = () => {
             <span className="text-xl font-black text-white tracking-tight">ARGO</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all">
-              <i className={`fas ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i>
-            </button>
             {user ? (
               <div className="flex items-center gap-3 pl-3">
                 <div className="text-right hidden sm:block">
@@ -236,80 +287,47 @@ const App: React.FC = () => {
           <form onSubmit={handleSearch} className="max-w-5xl mx-auto">
             <div className="bg-white dark:bg-slate-800 p-2 rounded-3xl shadow-2xl flex flex-col md:flex-row gap-1 border border-white/10">
               <div className="flex-1 flex flex-col sm:flex-row relative">
-                <AutocompleteInput
-                  label="Откуда"
-                  value={fromCity}
-                  onChange={setFromCity}
-                  placeholder="Город отправления"
-                  icon="fas fa-map-marker-alt"
-                />
-                <button
-                  type="button"
-                  onClick={swapCities}
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-blue-600 dark:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:rotate-180 transition-all border-4 border-white dark:border-slate-800"
-                >
+                <AutocompleteInput label="Откуда" value={fromCity} onChange={setFromCity} placeholder="Город отправления" icon="fas fa-map-marker-alt" />
+                <button type="button" onClick={swapCities} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 bg-blue-600 dark:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 active:rotate-180 transition-all border-4 border-white dark:border-slate-800">
                   <i className="fas fa-exchange-alt text-[10px]"></i>
                 </button>
-                <AutocompleteInput
-                  label="Куда"
-                  value={toCity}
-                  onChange={setToCity}
-                  placeholder="Город назначения"
-                  icon="fas fa-location-arrow"
-                />
+                <AutocompleteInput label="Куда" value={toCity} onChange={setToCity} placeholder="Город назначения" icon="fas fa-location-arrow" />
               </div>
               <div className="flex flex-col sm:flex-row flex-[0.7] divide-x divide-slate-100 dark:divide-slate-700">
                 <div className="flex-1 px-4 py-2">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Вес (кг)</label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
-                    value={weight}
-                    onChange={(e) => setWeight(parseFloat(e.target.value))}
-                    className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white"
-                  />
+                  <input type="number" min="0.1" step="0.1" value={weight} onChange={(e) => setWeight(parseFloat(e.target.value) || 1)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white" />
                 </div>
                 <div className="flex-1 px-4 py-2">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ценность (₽)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={declaredValue}
-                    onChange={(e) => setDeclaredValue(parseInt(e.target.value))}
-                    className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white"
-                  />
+                  <input type="number" min="0" value={declaredValue} onChange={(e) => setDeclaredValue(parseInt(e.target.value) || 0)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white" />
                 </div>
               </div>
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-4 rounded-2xl font-black text-lg transition-all shadow-xl shadow-orange-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <div className="flex flex-col sm:flex-row flex-[1] divide-x divide-slate-100 dark:divide-slate-700 mt-4 sm:mt-0">
+                <div className="flex-1 px-4 py-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Длина (см)</label>
+                  <input type="number" min="1" value={length} onChange={(e) => setLength(parseFloat(e.target.value) || 30)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white" />
+                </div>
+                <div className="flex-1 px-4 py-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Ширина (см)</label>
+                  <input type="number" min="1" value={width} onChange={(e) => setWidth(parseFloat(e.target.value) || 20)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white" />
+                </div>
+                <div className="flex-1 px-4 py-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Высота (см)</label>
+                  <input type="number" min="1" value={height} onChange={(e) => setHeight(parseFloat(e.target.value) || 10)} className="w-full bg-transparent border-none outline-none font-bold text-slate-800 dark:text-white" />
+                </div>
+              </div>
+              <button type="submit" disabled={isSearching} className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-4 rounded-2xl font-black text-lg transition-all shadow-xl shadow-orange-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
                 {isSearching ? <i className="fas fa-spinner fa-spin"></i> : 'Найти'}
               </button>
             </div>
-            {/* Filters */}
+
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               {CARGO_COMPANIES.map(company => (
-                <label
-                  key={company}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all border-2 flex items-center gap-2 ${
-                    selectedCompanies.includes(company)
-                      ? 'bg-white/10 border-white/40 text-white'
-                      : 'bg-transparent border-white/10 text-white/40 hover:text-white/60'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="hidden"
-                    checked={selectedCompanies.includes(company)}
-                    onChange={() => {
-                      setSelectedCompanies(prev =>
-                        prev.includes(company) ? prev.filter(c => c !== company) : [...prev, company]
-                      );
-                    }}
-                  />
+                <label key={company} className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all border-2 flex items-center gap-2 ${selectedCompanies.includes(company) ? 'bg-white/10 border-white/40 text-white' : 'bg-transparent border-white/10 text-white/40 hover:text-white/60'}`}>
+                  <input type="checkbox" className="hidden" checked={selectedCompanies.includes(company)} onChange={() => {
+                    setSelectedCompanies(prev => prev.includes(company) ? prev.filter(c => c !== company) : [...prev, company]);
+                  }} />
                   {selectedCompanies.includes(company) && <i className="fas fa-check text-[8px]"></i>}
                   {company}
                 </label>
@@ -319,10 +337,8 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 -mt-24 pb-20 relative z-20">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Sidebar: History */}
           <aside className="lg:col-span-3">
             <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xl sticky top-24">
               <div className="flex items-center justify-between mb-6">
@@ -332,11 +348,7 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 {searchHistory.length > 0 ? (
                   searchHistory.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => applyHistoryItem(item)}
-                      className="w-full text-left p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-slate-700 transition-all group"
-                    >
+                    <button key={item.id} onClick={() => applyHistoryItem(item)} className="w-full text-left p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-slate-700 transition-all group">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-slate-900 dark:text-white truncate flex-1">
                           {item.fromCity} <i className="fas fa-arrow-right text-[8px] mx-1 opacity-40"></i> {item.toCity}
@@ -359,20 +371,16 @@ const App: React.FC = () => {
                 )}
               </div>
               {searchHistory.length > 0 && (
-                <button
-                  onClick={() => {
-                    mockDb.clearHistory();
-                    setSearchHistory([]);
-                  }}
-                  className="w-full mt-6 py-2 text-[10px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors"
-                >
+                <button onClick={() => {
+                  mockDb.clearHistory();
+                  setSearchHistory([]);
+                }} className="w-full mt-6 py-2 text-[10px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors">
                   Очистить историю
                 </button>
               )}
             </div>
           </aside>
 
-          {/* Results List */}
           <section className="lg:col-span-9">
             {isSearching ? (
               <div className="space-y-4 animate-pulse">
@@ -386,13 +394,6 @@ const App: React.FC = () => {
                   <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
                     Найденные варианты ({offers.length})
                   </h2>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-bold">Сортировка:</span>
-                    <select className="bg-transparent text-xs font-bold text-blue-600 outline-none">
-                      <option>Сначала дешевые</option>
-                      <option>Сначала быстрые</option>
-                    </select>
-                  </div>
                 </div>
                 {offers.map((offer, index) => (
                   <OfferCard key={offer.id} offer={offer} isCheapest={index === 0} />
@@ -413,7 +414,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="bg-slate-100 dark:bg-slate-950 pt-20 pb-10">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex justify-center gap-8 mb-8 grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
@@ -422,16 +422,12 @@ const App: React.FC = () => {
             <i className="fab fa-cc-apple-pay text-3xl"></i>
             <i className="fab fa-google-pay text-3xl"></i>
           </div>
-          <p className="text-slate-400 dark:text-slate-600 text-xs font-bold uppercase tracking-widest mb-2">© 2024 CArgo — Авиасейлс в мире логистики</p>
+          <p className="text-slate-400 dark:text-slate-600 text-xs font-bold uppercase tracking-widest mb-2">© 2025 CArgo — Поиск лучших грузоперевозок</p>
           <p className="text-slate-400 dark:text-slate-600 text-[10px]">Все права защищены. Цены не являются публичной офертой.</p>
         </div>
       </footer>
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={(user) => setUser(user)}
-      />
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onSuccess={(user) => setUser(user)} />
     </div>
   );
 };

@@ -22,6 +22,13 @@ export interface Offer {
   badge?: string;
   logo: string;
   color: string;
+  fromCity: string;     // <-- добавь
+  toCity: string;       // <-- добавь
+  weight: number;       // <-- добавь
+  declaredValue: number; // <-- добавь
+  length: number;
+  width: number;
+  height: number;
 }
 
 export interface User {
