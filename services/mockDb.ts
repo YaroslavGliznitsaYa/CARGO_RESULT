@@ -1,44 +1,48 @@
+import { User, SearchHistoryItem } from '../types';
 
-import { SearchHistoryItem, User } from '../types';
-
-const KEYS = {
-  HISTORY: 'cargo_search_history',
-  USER: 'cargo_current_user',
-  USERS_DB: 'cargo_users_database'
-};
+const STORAGE_KEY_USER = 'cargo_current_user';
+const STORAGE_KEY_HISTORY_PREFIX = 'cargo_history_';
 
 export const mockDb = {
-  getHistory: (): SearchHistoryItem[] => {
-    const data = localStorage.getItem(KEYS.HISTORY);
-    return data ? JSON.parse(data) : [];
-  },
-
-  saveHistoryItem: (item: Omit<SearchHistoryItem, 'id' | 'timestamp'>) => {
-    const history = mockDb.getHistory();
-    const newItem: SearchHistoryItem = {
-      ...item,
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: Date.now()
-    };
-    const updated = [newItem, ...history].slice(0, 10); // Keep last 10
-    localStorage.setItem(KEYS.HISTORY, JSON.stringify(updated));
-    return updated;
-  },
-
-  clearHistory: () => {
-    localStorage.removeItem(KEYS.HISTORY);
-  },
-
+  // Пользователь
   getCurrentUser: (): User | null => {
-    const data = localStorage.getItem(KEYS.USER);
-    return data ? JSON.parse(data) : null;
+    const stored = localStorage.getItem(STORAGE_KEY_USER);
+    return stored ? JSON.parse(stored) : null;
   },
 
   setCurrentUser: (user: User | null) => {
     if (user) {
-      localStorage.setItem(KEYS.USER, JSON.stringify(user));
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
     } else {
-      localStorage.removeItem(KEYS.USER);
+      localStorage.removeItem(STORAGE_KEY_USER);
+      // При выходе — очищаем только текущую историю (не всех)
     }
-  }
+  },
+
+  // История поиска — привязана к пользователю
+  getHistory: (userId?: string): SearchHistoryItem[] => {
+    const key = userId ? `${STORAGE_KEY_HISTORY_PREFIX}${userId}` : STORAGE_KEY_HISTORY_PREFIX + 'guest';
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : [];
+  },
+
+  saveHistoryItem: (item: Omit<SearchHistoryItem, 'id'>, userId?: string): SearchHistoryItem[] => {
+    const key = userId ? `${STORAGE_KEY_HISTORY_PREFIX}${userId}` : STORAGE_KEY_HISTORY_PREFIX + 'guest';
+    const history = mockDb.getHistory(userId);
+
+    const newItem: SearchHistoryItem = {
+      ...item,
+      id: Date.now().toString(),
+    };
+
+    const updated = [newItem, ...history].slice(0, 20); // максимум 20 записей
+    localStorage.setItem(key, JSON.stringify(updated));
+
+    return updated;
+  },
+
+  clearHistory: (userId?: string) => {
+    const key = userId ? `${STORAGE_KEY_HISTORY_PREFIX}${userId}` : STORAGE_KEY_HISTORY_PREFIX + 'guest';
+    localStorage.removeItem(key);
+  },
 };

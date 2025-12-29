@@ -9,13 +9,17 @@ const OfferCard: React.FC<{ offer: Offer; isCheapest?: boolean }> = ({ offer, is
     case 'СДЭК':
       return 'https://www.cdek.ru/ru/calculate';
     case 'Boxberry':
-      return 'https://boxberry.ru/calculator/';
+      return 'https://boxberry.ru/calculator/'; // прямой Boxberry
     case 'Почта России':
       return 'https://www.pochta.ru/parcels';
     case 'Деловые Линии':
       return 'https://www.dellin.ru/requests/';
+    case 'ПЭК':
+      return 'https://pecom.ru/calculator/';
+    case 'Энергия':
+      return 'https://nrg-tk.ru/calculator/';
     default:
-      return 'https://www.cdek.ru/ru/calculate'; // fallback
+      return 'https://www.cdek.ru/ru/calculate';
   }
 };
 
@@ -58,5 +62,6 @@ const OfferCard: React.FC<{ offer: Offer; isCheapest?: boolean }> = ({ offer, is
     </div>
   );
 };
+
 
 export default OfferCard;

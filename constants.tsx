@@ -505,4 +505,11 @@ export const RUSSIAN_CITIES: City[] = [
   { id: '500', name: 'Няндома' }
 ];
 
-export const CARGO_COMPANIES = ["СДЭК", "Boxberry", "Почта России", "Деловые Линии", "ПЭК", "Энергия"];
+export const CARGO_COMPANIES = [
+  'СДЭК',
+  'Boxberry',
+  'Почта России',
+  'Деловые Линии',
+  'ПЭК',
+  'Энергия'
+];
